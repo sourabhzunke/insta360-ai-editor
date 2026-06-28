@@ -1,0 +1,9 @@
+openvino==2024.1.0
+openvino-telemetry
+streamlit
+opencv-python
+ffmpeg-python
+numpy
+pandas
+requests
+torch --index-url https://download.pytorch.org/whl/cpu
