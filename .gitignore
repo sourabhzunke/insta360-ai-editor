@@ -18,3 +18,8 @@ models/*.pt
 # IDE files
 .vscode/
 .idea/
+
+# Global model weight blocks
+*.pt
+*.xml
+*.bin
