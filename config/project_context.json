@@ -1,0 +1,54 @@
+{
+  "project": "Autonomous AI Video Editor for Insta360 Tracking",
+  "consultant": "Sourabh Zunke",
+  "version": "1.0.0-baseline-master",
+  "last_synchronized_utc": "2026-06-28",
+  "target_workstation": {
+    "host_machine": "NucBox EVO-T1",
+    "cpu": "Intel Core Ultra 9 285H (with native NPU integration)",
+    "gpu": "Intel Arc 140T GPU (48GB Allocatable Shared VRAM)",
+    "ram_allocation": "96.0 GB Total Physical Workspace Cache"
+  },
+  "runtime_environment": {
+    "engine": "OpenVINO Toolkit Runtime",
+    "version": "2026.2.1-stable",
+    "backend_target_string": "intel:gpu",
+    "verified_hardware_devices": ["CPU", "GPU", "NPU"]
+  },
+  "architecture_roadmap_status": {
+    "module_1_ingestion_core": {
+      "status": "COMPLETED",
+      "components": {
+        "VideoPairParser": "Dual-track synchronization indexing .lrv proxy paths to .insv master clips.",
+        "FrameBufferIngestor": "High-capacity RAM frame caching downsampled to 640x480 matrices.",
+        "TelemetryExtractor": "Structural IMU data mapping matrix template framework."
+      },
+      "source_files": ["src/ingestion/parser.py", "src/ingestion/telemetry.py", "test_ingestion.py"]
+    },
+    "module_2_perception_engine": {
+      "status": "COMPLETED",
+      "components": {
+        "OpenVINO_Compiler": "YOLOv10m.pt neural graph trimmed and quantized to a 29.9MB FP16 compiled IR topology.",
+        "IntegratedPerceptionEngine": "Hybrid tracking engine integrating YOLOv10 for candidate discovery with SAM 2 pixel-exact tracking masks."
+      },
+      "source_files": ["src/perception/optimize_model.py", "src/perception/tracker.py"],
+      "binaries_local_only": ["models/yolov10m.pt", "models/yolov10m_openvino_model/", "sam2_b.pt"]
+    },
+    "module_3_kinematic_smooth_filter": {
+      "status": "PENDING",
+      "targets": [
+        "Translate 2D bounding boxes into spherical target coordinates (Yaw and Pitch angular ray streams).",
+        "Implement discrete Kalman Filtering loop equations to strip away visual jitter and handle subject occlusion.",
+        "Upgrade TelemetryExtractor with an subprocess-level binary reader to capture real camera motion profiles."
+      ]
+    },
+    "module_4_audio_treatment_and_render": {
+      "status": "PENDING",
+      "targets": [
+        "Implement digital 2nd-order High-Pass Filter at 150Hz to eliminate high-intensity wind buffeting noise.",
+        "Integrate dynamic range limiting compression curves to prevent high-amplitude audio clipping peaks.",
+        "Compile the real-time parallel FFmpeg hardware encoding pipeline using Intel QuickSync Video (QSV) parameters."
+      ]
+    }
+  }
+}
