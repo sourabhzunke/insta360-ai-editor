@@ -23,3 +23,19 @@ models/*.pt
 *.pt
 *.xml
 *.bin
+
+# Exclude binary executables and tool assets
+exiftool.exe
+exiftool_files/
+export_sam.py
+
+# Exclude telemetry dumps and localized caching variables
+config/telemetry_dump.json
+PPROJECT_MEMORY_CACHE.md
+
+# Exclude generic document specifications
+PC_specificatino.pdf
+
+# Exclude heavy OpenVINO model weight directories
+FastSAM-s_openvino_model/
+models/
