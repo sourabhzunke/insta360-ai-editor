@@ -73,52 +73,6 @@ class VideoPairParser:
 
         return metadata
 		
-class FrameBufferIngestor:
-    def __init__(self, video_path, target_width=640, target_height=480, max_cached_chunks=500):
-        """
-        Utilizes high system RAM capacity to cache decoded video frames in memory arrays,
-        preventing continuous disk read latency during AI inference loops.
-        """
-        self.video_path = video_path
-        self.target_width = target_width
-        self.target_height = target_height
-        self.max_cached_chunks = max_cached_chunks
-        self.buffer = []
-        
-    def load_video_to_ram(self):
-        """
-        Reads the video proxy target file and populates the high-speed RAM cache matrix.
-        """
-        cap = cv2.VideoCapture(self.video_path)
-        if not cap.isOpened():
-            print(f"❌ Error: Unable to open video track at {self.video_path}")
-            return False
-
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        print(f"🧠 Allocating RAM cache for {total_frames} frames...")
-        
-        frame_idx = 0
-        while True:
-            ret, frame = cap.get_cmd() if hasattr(cap, 'get_cmd') else cap.read()
-            if not ret:
-                break
-                
-            # Resize frame down to optimized dimensions for fast AI ingestion
-            resized_frame = cv2.resize(frame, (self.target_width, self.target_height))
-            self.buffer.append(resized_frame)
-            
-            frame_idx += 1
-            if frame_idx >= self.max_cached_chunks:
-                print(f"⚠️ Cache ceiling hit at {self.max_cached_chunks} frames.")
-                break
-
-        cap.release()
-        
-        # Convert internal list to a contiguous block of memory for ultra-fast GPU indexing
-        self.buffer = np.array(self.buffer, dtype=np.uint8)
-        ram_usage_mb = self.buffer.nbytes / (1024 * 1024)
-        print(f"✅ Cached frame matrix successfully into RAM: {ram_usage_mb:.2f} MB utilized.")
-        return True
 
     def get_frame(self, frame_index):
         """

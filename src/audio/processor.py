@@ -41,12 +41,9 @@ class AudioActionFilter:
 
         # Apply filter across channel arrays
         if data.ndim > 1:
-            # Process multi-channel stereo/spatial audio layouts
-            cleaned_data = np.zeros_like(data)
-            for channel in range(data.shape[1]):
-                cleaned_data[:, channel] = lfilter(b, a, data[:, channel])
+            # Processes all channels concurrently with zero Python loop overhead
+            cleaned_data = lfilter(b, a, data, axis=0)
         else:
-            # Process mono layouts
             cleaned_data = lfilter(b, a, data)
 
         # Save the filtered audio file

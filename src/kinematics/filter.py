@@ -51,15 +51,25 @@ class LinearKalman1D:
         # 2. Correction Step (A posteriori measurement update)
         if measurement is not None:
             # Innovation (Measurement Residual)
+            # Update within src/kinematics/filter.py -> LinearKalman1D.update()
             y = np.array([[measurement]]) - (self.H @ x_pred)
-            # Innovation Covariance
             S = (self.H @ P_pred @ self.H.T) + self.R
-            # Dynamic Kalman Gain
-            K = P_pred @ self.H.T @ np.linalg.inv(S)
             
-            # Update state estimate and error covariance
+            # Fast scalar division bypasses heavy LAPACK matrix inversion loops
+            K = P_pred @ self.H.T * (1.0 / S[0, 0])
+            
             self.x = x_pred + (K @ y)
             self.P = (np.eye(2) - (K @ self.H)) @ P_pred
+            
+            #y = np.array([[measurement]]) - (self.H @ x_pred)
+            ## Innovation Covariance
+            #S = (self.H @ P_pred @ self.H.T) + self.R
+            ## Dynamic Kalman Gain
+            #K = P_pred @ self.H.T @ np.linalg.inv(S)
+            #
+            ## Update state estimate and error covariance
+            #self.x = x_pred + (K @ y)
+            #self.P = (np.eye(2) - (K @ self.H)) @ P_pred
         else:
             # TARGET OCCLUDED: Propagate state strictly using velocity history
             self.x = x_pred

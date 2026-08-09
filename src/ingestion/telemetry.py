@@ -55,7 +55,6 @@ class TelemetryExtractor:
         Invokes local ExifTool subprocess threads to parse embedded 
         timed camera motion metadata layouts automatically without third-party dependencies.
         """
-        # Search path bindings for the local executable asset
         exiftool_bin = "exiftool"
         if not shutil.which(exiftool_bin):
             if os.path.exists("exiftool.exe"):
@@ -65,58 +64,99 @@ class TelemetryExtractor:
                 return False
 
         print(f"🛠️  Extracting camera metadata stream from {os.path.basename(video_path)} using ExifTool...")
-        
         os.makedirs(os.path.dirname(self.json_path), exist_ok=True)
         
-        # Build command array to extract embedded timed metadata tracks as structured JSON strings
+        # Adding '-m' flag to ignore harmless warnings on large files
         cmd = [
             exiftool_bin,
             "-ee",                        # Extract embedded streams
             "-G3",                        # Classify document elements
             "-api", "LargeFileSupport=1", # Prevent size limits on files over 4GB
+            "-m",                         # Ignore minor errors and warnings completely
             "-j",                         # Structure string terminal output to JSON
             video_path
         ]
         
         try:
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+            # Handle return status safely without check=True halting Python on warnings
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if result.returncode == 2 or not result.stdout.strip():
+                print(f"❌ Fatal ExifTool Error (Exit Code {result.returncode}): {result.stderr}")
+                return False
+
             extracted_json = json.loads(result.stdout)
-            
-            # Map the complex multi-track records down into our pipeline's expected format
             mock_payload = {"samples": []}
-            base_time = 0.0
             
-            # Extract strings from sequential camera metadata fields if present
             if extracted_json and len(extracted_json) > 0:
                 file_metadata = extracted_json[0]
                 
-                # Check for standardized CAMM fields or device telemetry hooks
-                gyro_data = [val for k, val in file_metadata.items() if "AngularVelocity" in k]
-                accel_data = [val for k, val in file_metadata.items() if "Acceleration" in k]
+                # 🚀 1. SINGLE-PASS SCAN: Extract both streams in a single iteration
+                gyro_raw = []
+                accel_raw = []
+                for k, v in file_metadata.items():
+                    if "AngularVelocity" in k:
+                        gyro_raw.append(v)
+                    elif "Acceleration" in k:
+                        accel_raw.append(v)
+
+                # 🚀 2. VECTORIZED PARSER: Converts list of strings to (N, 3) float matrix instantly
+                def parse_vectors_vectorized(raw_list, default_fallback):
+                    if not raw_list:
+                        return np.zeros((0, 3), dtype=float)
+                    
+                    # Try high-speed NumPy C-batch conversion if elements are strings
+                    if isinstance(raw_list[0], str):
+                        try:
+                            split_matrix = [s.split() for s in raw_list]
+                            return np.array(split_matrix, dtype=float)
+                        except Exception:
+                            pass  # Fallback to item-by-item safety parser on shape mismatch
+                    
+                    # Safe itemized fallback for pre-parsed lists or mixed types
+                    parsed = []
+                    for item in raw_list:
+                        if isinstance(item, (list, tuple)) and len(item) == 3:
+                            parsed.append(item)
+                        elif isinstance(item, str):
+                            try:
+                                parts = [float(x) for x in item.split()]
+                                parsed.append(parts if len(parts) == 3 else default_fallback)
+                            except ValueError:
+                                parsed.append(default_fallback)
+                        else:
+                            parsed.append(default_fallback)
+                    return np.array(parsed, dtype=float)
+
+                # Execute batch vectorization
+                gyro_mat = parse_vectors_vectorized(gyro_raw, [0.0, 0.0, 0.0])
+                accel_mat = parse_vectors_vectorized(accel_raw, [0.0, 9.81, 0.0])
+
+                # 🚀 3. STREAMING PAYLOAD BUILDER: Map matrices directly into standard payload
+                total_samples = max(len(gyro_mat), len(accel_mat), 90)
+                base_time = 0.0
                 
-                # Zip parsed attributes down into our standard matrix structure
-                total_samples = max(len(gyro_data), 90) # Handle safety fallback length
                 for i in range(total_samples):
-                    g_vec = [float(x) for x in gyro_data[i].split()] if i < len(gyro_data) and isinstance(gyro_data[i], str) else [0.0, 0.0, 0.0]
-                    a_vec = [float(x) for x in accel_data[i].split()] if i < len(accel_data) and isinstance(accel_data[i], str) else [0.0, 9.81, 0.0]
+                    g_vec = gyro_mat[i].tolist() if i < len(gyro_mat) else [0.0, 0.0, 0.0]
+                    a_vec = accel_mat[i].tolist() if i < len(accel_mat) else [0.0, 9.81, 0.0]
                     
                     mock_payload["samples"].append({
                         "timestamp_ms": int(base_time * 1000),
-                        "gyro": g_vec,
-                        "accelerometer": a_vec,
+                        "gyro": [round(x, 4) for x in g_vec],
+                        "accelerometer": [round(x, 4) for x in a_vec],
                         "temperature": 35.0
                     })
                     base_time += 1/30
-                    
+
             with open(self.json_path, "w", encoding="utf-8") as f:
                 json.dump(mock_payload, f, indent=2)
                 
             print(f"✅ Automatically compiled real metadata logging profile to: {self.json_path}")
             return True
-        except Exception as e:
-            print(f"⚠️ Metadata extractor subprocess trace encountered an issue: {e}")
-            return False
 
+        except Exception as e:
+            print(f"⚠️ Metadata extractor process trace encountered an issue: {e}")
+            return False
+            
     def _generate_mock_json_export(self):
         """Standard backup fallback script asset builder."""
         os.makedirs(os.path.dirname(self.json_path), exist_ok=True)
